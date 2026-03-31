@@ -4,23 +4,9 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-const cards = ["1", "2", "3", "5", "8", "13", "21", "34", "?", "🚫"];
+import { POKER_CARDS, POKER_GRADIENTS } from "@/constants/poker";
 
-// Updated gradients to be more vibrant and harmonious
-const gradients = [
-  "from-emerald-400 to-emerald-700",
-  "from-teal-400 to-teal-700",
-  "from-cyan-400 to-cyan-700",
-  "from-sky-400 to-sky-700",
-  "from-blue-400 to-blue-700",
-  "from-indigo-400 to-indigo-700",
-  "from-violet-400 to-violet-700",
-  "from-purple-400 to-purple-700",
-  "from-fuchsia-400 to-fuchsia-700",
-  "from-pink-400 to-pink-700",
-];
-
-const length = cards.length;
+const length = POKER_CARDS.length;
 const maxValue = 40;
 const center = (length - 1) / 2;
 
@@ -59,7 +45,7 @@ const PokerCard = ({
   return (
     <div className="flex w-full items-center justify-center py-12 px-10 overflow-visible">
       <div className="flex items-center justify-center">
-        {cards.map((card, index) => {
+        {POKER_CARDS.map((card, index) => {
           const { translateY, rotateZ } = values[index];
           const isSelected = card === currentCard;
           const isLoading = card === loadingCard;
@@ -69,7 +55,7 @@ const PokerCard = ({
               key={card}
               className={cn(
                 `relative h-[150px] w-[100px] cursor-pointer rounded-2xl bg-linear-to-b ${
-                  gradients[index]
+                  POKER_GRADIENTS[index]
                 } p-4 text-2xl font-black text-white shadow-2xl transition-all duration-300 flex items-start justify-start select-none`,
                 {
                   "-ml-[50px]": isReady && index > 0,
@@ -98,7 +84,9 @@ const PokerCard = ({
               ) : (
                 isSelected && (
                   <div className="absolute top-2 right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-lg">
-                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                    <div
+                      className={`${card === "?" ? "bg-slate-400" : card === "☕" ? "bg-amber-600" : "bg-indigo-600"} w-4 h-4 rounded-full flex items-center justify-center`}
+                    >
                       <svg
                         className="w-3 h-3 text-white"
                         fill="none"

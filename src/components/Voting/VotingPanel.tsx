@@ -10,7 +10,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import PokerCard from "./PokerCard";
+import { POKER_CARDS, POKER_GRADIENTS } from "@/constants/poker";
 import { renderTitleWithLinks } from "@/lib/renderTaskTitle";
+import { cn } from "@/lib/utils";
 
 interface VoteResult {
   id: string;
@@ -270,22 +272,57 @@ export default function VotingPanel() {
             <div className="space-y-6">
               {Object.entries(votesByValue)
                 .sort((a, b) => {
-                  if (a[0] === "🚫") return 1;
-                  if (b[0] === "🚫") return -1;
+                  if (a[0] === "☕") return 1;
+                  if (b[0] === "☕") return -1;
                   if (a[0] === "?") return 1;
                   if (b[0] === "?") return -1;
                   return Number(a[0]) - Number(b[0]);
                 })
                 .map(([value, members]) => (
-                  <div key={value} className="flex items-center space-x-6">
-                    <div
-                      className={`
-                      w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-sm
-                      ${value === "?" ? "bg-slate-400" : "bg-indigo-600"}
-                   `}
-                    >
-                      {value}
-                    </div>
+                  <div
+                    key={value}
+                    className="flex items-center space-x-6 group/result"
+                  >
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <div
+                            onClick={async () => {
+                              if (isOwner && currentTaskId && value !== "?") {
+                                const { error } = await supabase
+                                  .from("tasks")
+                                  .update({ final_score: value })
+                                  .eq("id", currentTaskId);
+                                if (error)
+                                  console.error(
+                                    "Error setting final score:",
+                                    error,
+                                  );
+                              }
+                            }}
+                            className={cn(
+                              "w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-sm transition-all animate-in fade-in zoom-in duration-300",
+                              value === "?"
+                                ? "bg-slate-400 cursor-default"
+                                : value === "☕"
+                                  ? "bg-linear-to-b from-amber-500 to-amber-800"
+                                  : `bg-linear-to-b ${POKER_GRADIENTS[POKER_CARDS.indexOf(value)] || "bg-indigo-600"}`,
+                              isOwner &&
+                                value !== "?" &&
+                                "cursor-pointer hover:scale-110 active:scale-95 ring-4 ring-white/20 dark:ring-white/10 hover:ring-white/40",
+                            )}
+                          >
+                            {value}
+                          </div>
+                        </TooltipTrigger>
+                        {isOwner && value !== "?" && (
+                          <TooltipContent>
+                            <p>Set as final score</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+
                     <div className="flex -space-x-3">
                       {members.map((m, i) => (
                         <TooltipProvider key={m.id}>
