@@ -106,7 +106,7 @@ export default function VotingPanel() {
     if (voteError) console.error("Error resetting votes:", voteError);
   };
 
-  if (!currentTaskId) {
+  if (!currentTaskId || !currentTask) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center space-y-4">
         <div className="p-6 bg-slate-100 dark:bg-slate-800/50 rounded-full animate-pulse">
@@ -215,7 +215,9 @@ export default function VotingPanel() {
                 <Check className="w-5 h-5 text-green-500" />
               </div>
               <div className="flex items-center -space-x-4">
-                {participantsList.map((p, i) => {
+                {Array.from(
+                  new Map(participantsList.map((p) => [p.user_id, p])).values(),
+                ).map((p, i) => {
                   const hasVoted = votes.some(
                     (v) =>
                       v.task_id === currentTaskId && v.user_id === p.user_id,

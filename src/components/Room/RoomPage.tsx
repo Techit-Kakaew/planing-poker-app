@@ -26,6 +26,7 @@ export default function RoomPage() {
     setLeaderSelectedTaskId,
   } = useRoomStore();
   const [roomName, setRoomName] = useState("");
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     if (!roomId) return;
@@ -68,7 +69,10 @@ export default function RoomPage() {
         .eq("room_id", roomId)
         .order("order_index");
 
-      if (data) setTasks(data);
+      if (data) {
+        setTasks(data);
+        setHasLoaded(true);
+      }
     };
 
     const fetchVotes = async () => {
@@ -161,8 +165,8 @@ export default function RoomPage() {
     setVotes,
     setParticipants,
     setRoomOwnerId,
-    setCurrentTaskId,
     setLeaderSelectedTaskId,
+    setCurrentTaskId,
     navigate,
     searchParams,
   ]);
@@ -180,14 +184,32 @@ export default function RoomPage() {
 
   // Validate currentTaskId against tasks list (handle deletion or invalid URL)
   useEffect(() => {
-    if (tasks.length > 0 && currentTaskId) {
+    // Only run validation after we've finished the initial fetch
+    if (!hasLoaded) return;
+
+    // 1. If we have a task ID in URL but it's not in the list, clear it
+    if (currentTaskId) {
       const exists = tasks.some((t) => t.id === currentTaskId);
-      if (!exists) {
+      if (!exists && tasks.length > 0) {
         console.warn("Selected task not found, clearing selection");
         setCurrentTaskId(null);
+        setSearchParams({}, { replace: true });
       }
     }
-  }, [tasks, currentTaskId, setCurrentTaskId]);
+
+    // 2. If the room is empty, ensure no task is selected in URL
+    if (tasks.length === 0 && searchParams.get("task")) {
+      setCurrentTaskId(null);
+      setSearchParams({}, { replace: true });
+    }
+  }, [
+    tasks,
+    currentTaskId,
+    setCurrentTaskId,
+    setSearchParams,
+    searchParams,
+    hasLoaded,
+  ]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
