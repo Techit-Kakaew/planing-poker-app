@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRoomStore } from "@/store/useRoomStore";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,57 @@ export default function VotingPanel() {
   const revealed = currentTask?.revealed || false;
   const myVote = votes.find(
     (v) => v.task_id === currentTaskId && v.user_id === user?.id,
+  );
+  const currentTaskVotes = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          votes
+            .filter((vote) => vote.task_id === currentTaskId)
+            .map((vote) => [vote.user_id, vote]),
+        ).values(),
+      ).sort((a, b) =>
+        (a.user_name || "").localeCompare(b.user_name || "", undefined, {
+          sensitivity: "base",
+        }),
+      ),
+    [currentTaskId, votes],
+  );
+  const uniqueParticipants = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          participantsList.map((participant) => [
+            participant.user_id,
+            participant,
+          ]),
+        ).values(),
+      ).sort((a, b) =>
+        (a.user_name || "").localeCompare(b.user_name || "", undefined, {
+          sensitivity: "base",
+        }),
+      ),
+    [participantsList],
+  );
+  const displayParticipants = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          [
+            ...uniqueParticipants,
+            ...currentTaskVotes.map((vote) => ({
+              user_id: vote.user_id,
+              user_name: vote.user_name,
+              avatar_url: vote.avatar_url,
+            })),
+          ].map((participant) => [participant.user_id, participant]),
+        ).values(),
+      ).sort((a, b) =>
+        (a.user_name || "").localeCompare(b.user_name || "", undefined, {
+          sensitivity: "base",
+        }),
+      ),
+    [currentTaskVotes, uniqueParticipants],
   );
 
   const handleVote = async (value: string) => {
@@ -127,10 +178,10 @@ export default function VotingPanel() {
 
   // Logic for grouped results including participants who didn't vote
   const votesByValue = revealed
-    ? participantsList.reduce(
+    ? displayParticipants.reduce(
         (acc, p) => {
-          const vote = votes.find(
-            (v) => v.task_id === currentTaskId && v.user_id === p.user_id,
+          const vote = currentTaskVotes.find(
+            (taskVote) => taskVote.user_id === p.user_id,
           );
           const value = vote ? vote.value : "🚫";
 
@@ -138,7 +189,7 @@ export default function VotingPanel() {
           acc[value].push({
             id: p.user_id,
             user_id: p.user_id,
-            user_name: p.user_name,
+            user_name: p.user_name || "Unknown User",
             avatar_url: p.avatar_url,
             value: value,
           });
@@ -209,18 +260,18 @@ export default function VotingPanel() {
               <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
                 Team Progress
               </h3>
+              <div className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                {currentTaskVotes.length}/{displayParticipants.length} voted
+              </div>
             </div>
             <div className="flex items-center">
               <div className="w-10 h-10 rounded border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center mr-6">
                 <Check className="w-5 h-5 text-green-500" />
               </div>
               <div className="flex items-center -space-x-4">
-                {Array.from(
-                  new Map(participantsList.map((p) => [p.user_id, p])).values(),
-                ).map((p, i) => {
-                  const hasVoted = votes.some(
-                    (v) =>
-                      v.task_id === currentTaskId && v.user_id === p.user_id,
+                {displayParticipants.map((p, i) => {
+                  const hasVoted = currentTaskVotes.some(
+                    (vote) => vote.user_id === p.user_id,
                   );
 
                   return (
@@ -268,9 +319,14 @@ export default function VotingPanel() {
         {/* Grouped Results */}
         {revealed && votesByValue && (
           <section className="space-y-6 pt-8 border-t border-slate-200 dark:border-slate-800">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-widest">
-              Results
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-widest">
+                Results
+              </h3>
+              <div className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                {currentTaskVotes.length}/{displayParticipants.length} voted
+              </div>
+            </div>
             <div className="space-y-6">
               {Object.entries(votesByValue)
                 .sort((a, b) => {

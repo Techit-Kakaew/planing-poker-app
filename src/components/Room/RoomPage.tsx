@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useRoomStore, type Participant } from "@/store/useRoomStore";
@@ -7,6 +7,36 @@ import VotingPanel from "../Voting/VotingPanel";
 import PresenceAvatars from "./PresenceAvatars";
 import { Button } from "@/components/ui/button";
 import { LogOut, Share2 } from "lucide-react";
+
+const normalizeParticipants = (presenceState: Record<string, unknown[]>) => {
+  const deduped = new Map<string, Participant>();
+
+  Object.values(presenceState).forEach((entries) => {
+    entries.forEach((entry) => {
+      const participant = entry as Participant;
+      if (!participant?.user_id) return;
+
+      const existing = deduped.get(participant.user_id);
+      if (!existing) {
+        deduped.set(participant.user_id, participant);
+        return;
+      }
+
+      deduped.set(participant.user_id, {
+        ...existing,
+        ...participant,
+        user_name: participant.user_name || existing.user_name,
+        avatar_url: participant.avatar_url || existing.avatar_url,
+      });
+    });
+  });
+
+  return Array.from(deduped.values()).sort((a, b) =>
+    (a.user_name || "").localeCompare(b.user_name || "", undefined, {
+      sensitivity: "base",
+    }),
+  );
+};
 
 export default function RoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -27,6 +57,14 @@ export default function RoomPage() {
   } = useRoomStore();
   const [roomName, setRoomName] = useState("");
   const [hasLoaded, setHasLoaded] = useState(false);
+  const roomTaskIdsRef = useRef<string[]>([]);
+  const initialTaskFromUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!roomId || initialTaskFromUrlRef.current) return;
+
+    initialTaskFromUrlRef.current = searchParams.get("task");
+  }, [roomId, searchParams]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -70,34 +108,33 @@ export default function RoomPage() {
         .order("order_index");
 
       if (data) {
+        roomTaskIdsRef.current = data.map((task) => task.id);
         setTasks(data);
         setHasLoaded(true);
       }
     };
 
-    const fetchVotes = async () => {
+    const fetchVotes = async (taskIds = roomTaskIdsRef.current) => {
+      if (taskIds.length === 0) {
+        setVotes([]);
+        return;
+      }
+
       const { data } = await supabase
         .from("votes")
         .select("*")
-        .in(
-          "task_id",
-          (
-            await supabase.from("tasks").select("id").eq("room_id", roomId)
-          ).data?.map((t) => t.id) || [],
-        );
+        .in("task_id", taskIds);
 
       if (data) setVotes(data);
     };
 
-    fetchRoom();
-    fetchTasks();
-    fetchVotes();
+    const loadInitialRoomData = async () => {
+      await fetchRoom();
+      await fetchTasks();
+      await fetchVotes(roomTaskIdsRef.current);
+    };
 
-    // Initialize from URL query param if present
-    const taskFromUrl = searchParams.get("task");
-    if (taskFromUrl) {
-      setCurrentTaskId(taskFromUrl);
-    }
+    loadInitialRoomData();
 
     // Presence and Subscriptions
     const channel = supabase.channel(`room:${roomId}`);
@@ -111,12 +148,37 @@ export default function RoomPage() {
           table: "tasks",
           filter: `room_id=eq.${roomId}`,
         },
-        () => fetchTasks(),
+        async () => {
+          const { data } = await supabase
+            .from("tasks")
+            .select("*")
+            .eq("room_id", roomId)
+            .order("order_index");
+
+          if (!data) return;
+
+          roomTaskIdsRef.current = data.map((task) => task.id);
+          setTasks(data);
+          setHasLoaded(true);
+          await fetchVotes(roomTaskIdsRef.current);
+        },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "votes" },
-        () => fetchVotes(),
+        (payload) => {
+          const changedTaskId =
+            payload.eventType === "DELETE"
+              ? payload.old.task_id
+              : payload.new.task_id;
+
+          if (
+            changedTaskId &&
+            roomTaskIdsRef.current.includes(changedTaskId as string)
+          ) {
+            fetchVotes();
+          }
+        },
       )
       .on(
         "postgres_changes",
@@ -137,11 +199,9 @@ export default function RoomPage() {
       )
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
-        const participantsList: Participant[] = [];
-        for (const id in state) {
-          participantsList.push(state[id][0] as unknown as Participant);
-        }
-        setParticipants(participantsList);
+        setParticipants(
+          normalizeParticipants(state as unknown as Record<string, unknown[]>),
+        );
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -168,14 +228,22 @@ export default function RoomPage() {
     setLeaderSelectedTaskId,
     setCurrentTaskId,
     navigate,
-    searchParams,
   ]);
+
+  useEffect(() => {
+    if (!initialTaskFromUrlRef.current) return;
+
+    setCurrentTaskId(initialTaskFromUrlRef.current);
+    initialTaskFromUrlRef.current = null;
+  }, [setCurrentTaskId]);
 
   // Update URL search params when currentTaskId changes
   useEffect(() => {
-    if (currentTaskId) {
+    const taskInUrl = searchParams.get("task");
+
+    if (currentTaskId && taskInUrl !== currentTaskId) {
       setSearchParams({ task: currentTaskId }, { replace: true });
-    } else {
+    } else if (!currentTaskId && taskInUrl) {
       const newParams = new URLSearchParams(searchParams);
       newParams.delete("task");
       setSearchParams(newParams, { replace: true });

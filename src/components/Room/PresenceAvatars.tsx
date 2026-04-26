@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useRoomStore, type Participant } from "@/store/useRoomStore";
 import {
   Tooltip,
@@ -14,9 +15,17 @@ export default function PresenceAvatars() {
   const isOwner = user?.id === roomOwnerId;
 
   // Deduplicate participants by user_id
-  const uniqueParticipants = Array.from(
-    new Map(participants.map((p) => [p.user_id, p])).values(),
-  ) as Participant[];
+  const uniqueParticipants = useMemo(
+    () =>
+      Array.from(
+        new Map(participants.map((p) => [p.user_id, p])).values(),
+      ).sort((a, b) =>
+        (a.user_name || "").localeCompare(b.user_name || "", undefined, {
+          sensitivity: "base",
+        }),
+      ) as Participant[],
+    [participants],
+  );
 
   const handleTransferOwnership = async (newOwnerId: string) => {
     if (!roomId || !isOwner) return;
