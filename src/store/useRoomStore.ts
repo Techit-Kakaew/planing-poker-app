@@ -8,6 +8,7 @@ export interface Task {
   order_index: number;
   revealed?: boolean;
   final_score?: string;
+  has_jira_detail?: boolean;
 }
 
 export interface Vote {
@@ -34,6 +35,7 @@ interface RoomState {
   participants: Participant[];
   roomOwnerId: string | null;
   leaderSelectedTaskId: string | null;
+  jiraSiteUrl: string | null;
 
   setRoomId: (id: string | null) => void;
   setUser: (user: User | null) => void;
@@ -43,6 +45,7 @@ interface RoomState {
   setParticipants: (participants: Participant[]) => void;
   setRoomOwnerId: (id: string | null) => void;
   setLeaderSelectedTaskId: (id: string | null) => void;
+  setJiraSiteUrl: (url: string | null) => void;
 }
 
 export const useRoomStore = create<RoomState>((set) => ({
@@ -54,6 +57,7 @@ export const useRoomStore = create<RoomState>((set) => ({
   participants: [],
   roomOwnerId: null,
   leaderSelectedTaskId: null,
+  jiraSiteUrl: null,
 
   setRoomId: (id) => set({ roomId: id }),
   setUser: (user) => set({ user }),
@@ -63,4 +67,5 @@ export const useRoomStore = create<RoomState>((set) => ({
   setParticipants: (participants) => set({ participants }),
   setRoomOwnerId: (id) => set({ roomOwnerId: id }),
   setLeaderSelectedTaskId: (id) => set({ leaderSelectedTaskId: id }),
+  setJiraSiteUrl: (url) => set({ jiraSiteUrl: url }),
 }));

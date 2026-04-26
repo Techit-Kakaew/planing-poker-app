@@ -13,6 +13,7 @@ import PokerCard from "./PokerCard";
 import { POKER_CARDS, POKER_GRADIENTS } from "@/constants/poker";
 import { renderTitleWithLinks } from "@/lib/renderTaskTitle";
 import { cn } from "@/lib/utils";
+import TaskDetailButton from "@/components/Tasks/TaskDetailButton";
 
 interface VoteResult {
   id: string;
@@ -30,6 +31,7 @@ export default function VotingPanel() {
     votes,
     participants: participantsList,
     roomOwnerId,
+    jiraSiteUrl,
   } = useRoomStore();
   const isOwner = user?.id === roomOwnerId;
 
@@ -209,6 +211,11 @@ export default function VotingPanel() {
               Currently estimating
             </span>
             <div className="flex gap-2">
+              <TaskDetailButton
+                taskId={currentTask.id}
+                hasDetail={Boolean(currentTask.has_jira_detail)}
+                variant="inline"
+              />
               {isOwner && (
                 <>
                   <Button
@@ -249,7 +256,10 @@ export default function VotingPanel() {
             </div>
           </div>
           <h2 className="text-4xl font-black text-slate-900 dark:text-white leading-tight">
-            {renderTitleWithLinks(currentTask?.title || "")}
+            {renderTitleWithLinks(
+              currentTask?.title || "",
+              jiraSiteUrl ?? undefined,
+            )}
           </h2>
         </section>
 

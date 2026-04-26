@@ -3,6 +3,9 @@ import { useRoomStore, type Task } from "@/store/useRoomStore";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Plus, GripVertical, Trash2, Crown, Pencil } from "lucide-react";
+import { ToastContainer } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
+import { JiraIcon } from "@/components/ui/jira-icon";
 import {
   DndContext,
   closestCenter,
@@ -29,6 +32,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { renderTitleWithLinks } from "@/lib/renderTaskTitle";
+import JiraImportDialog from "@/components/Jira/JiraImportDialog";
+import TaskDetailButton from "@/components/Tasks/TaskDetailButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function TaskList() {
   const {
@@ -41,15 +47,18 @@ export default function TaskList() {
     roomOwnerId,
     participants,
     leaderSelectedTaskId,
+    jiraSiteUrl,
   } = useRoomStore();
   const isOwner = user?.id === roomOwnerId;
   const owner = participants.find((p) => p.user_id === roomOwnerId);
-
+  const { toasts, showToast, dismissToast } = useToast();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [isJiraImportOpen, setIsJiraImportOpen] = useState(false);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -107,13 +116,27 @@ export default function TaskList() {
 
   const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const confirm = window.confirm(
-      "Are you sure you want to delete this task?",
-    );
-    if (!confirm) return;
-    const { error } = await supabase.from("tasks").delete().eq("id", id);
-    if (error) console.error("Error deleting task:", error);
-    if (currentTaskId === id) setCurrentTaskId(null);
+    setDeleteTaskId(id);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!deleteTaskId) return;
+    const idToDelete = deleteTaskId;
+    setDeleteTaskId(null);
+
+    // Optimistic update — remove from store immediately
+    setTasks(tasks.filter((t) => t.id !== idToDelete));
+    if (currentTaskId === idToDelete) setCurrentTaskId(null);
+
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", idToDelete);
+    if (error) {
+      console.error("Error deleting task:", error);
+    } else {
+      showToast("Task deleted");
+    }
   };
 
   const handleEditTask = async () => {
@@ -154,15 +177,26 @@ export default function TaskList() {
           </span>
         </h2>
         {isOwner && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsAddModalOpen(true)}
-            className="text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 dark:bg-indigo-950/30 dark:border-indigo-900/50 dark:text-indigo-400 font-medium rounded-xl transition-all"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsJiraImportOpen(true)}
+              className="text-slate-600 border-slate-200 bg-white hover:bg-slate-100 hover:border-slate-300 dark:bg-slate-950/30 dark:border-slate-800 dark:text-slate-300 font-medium rounded-xl transition-all"
+            >
+              <JiraIcon className="w-4 h-4 mr-1 text-[#0052CC]" />
+              Import Jira
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddModalOpen(true)}
+              className="text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 dark:bg-indigo-950/30 dark:border-indigo-900/50 dark:text-indigo-400 font-medium rounded-xl transition-all"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Task
+            </Button>
+          </div>
         )}
       </div>
 
@@ -194,7 +228,7 @@ export default function TaskList() {
                   isOwner ? (e) => handleDeleteTask(task.id, e) : undefined
                 }
                 onEdit={
-                  isOwner
+                  isOwner && !task.has_jira_detail
                     ? (e) => {
                         e.stopPropagation();
                         setEditingTask(task);
@@ -205,6 +239,8 @@ export default function TaskList() {
                 }
                 isOwner={isOwner}
                 isRoomLeaderSelection={task.id === leaderSelectedTaskId}
+                hasDetail={Boolean(task.has_jira_detail)}
+                jiraSiteUrl={jiraSiteUrl}
               />
             ))}
           </SortableContext>
@@ -300,6 +336,26 @@ export default function TaskList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTaskId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTaskId(null);
+        }}
+        title="Delete Task"
+        description="This task and all its votes will be permanently deleted. This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={confirmDeleteTask}
+      />
+
+      <JiraImportDialog
+        open={isJiraImportOpen}
+        onOpenChange={setIsJiraImportOpen}
+        roomId={roomId}
+        tasks={tasks}
+      />
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
@@ -312,6 +368,8 @@ function SortableTaskItem({
   onEdit,
   isOwner,
   isRoomLeaderSelection,
+  hasDetail,
+  jiraSiteUrl,
 }: {
   task: Task;
   isActive: boolean;
@@ -320,6 +378,8 @@ function SortableTaskItem({
   onEdit?: (e: React.MouseEvent) => void;
   isOwner: boolean;
   isRoomLeaderSelection: boolean;
+  hasDetail: boolean;
+  jiraSiteUrl?: string | null;
 }) {
   const {
     attributes,
@@ -383,8 +443,9 @@ function SortableTaskItem({
         <p
           className={`text-sm font-semibold truncate ${isRoomLeaderSelection ? "text-amber-900 dark:text-amber-200" : isActive ? "text-indigo-900 dark:text-indigo-200" : "text-slate-700 dark:text-slate-300"}`}
         >
-          {renderTitleWithLinks(task.title)}
+          {renderTitleWithLinks(task.title, jiraSiteUrl ?? undefined)}
         </p>
+        <TaskDetailButton taskId={task.id} hasDetail={hasDetail} />
         {isRoomLeaderSelection && (
           <div className="absolute -top-2 -right-2 flex items-center gap-1 bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full text-[9px] font-black uppercase z-20 shadow-md border border-amber-200 dark:border-amber-800 animate-in fade-in zoom-in duration-300">
             <Crown className="w-2.5 h-2.5" />
@@ -438,14 +499,16 @@ function SortableTaskItem({
 
         {isOwner && (
           <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onEdit}
-              className="h-8 w-8 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl"
-            >
-              <Pencil className="w-4 h-4" />
-            </Button>
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onEdit}
+                className="h-8 w-8 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl"
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

@@ -17,6 +17,7 @@ import {
   Download,
 } from "lucide-react";
 import { renderTitleWithLinks } from "@/lib/renderTaskTitle";
+import { useRoomStore } from "@/store/useRoomStore";
 
 interface SummaryData {
   room: {
@@ -38,6 +39,7 @@ interface SummaryData {
 export default function SummaryPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const { jiraSiteUrl } = useRoomStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SummaryData | null>(null);
 
@@ -215,7 +217,7 @@ export default function SummaryPage() {
                   className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
                 >
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    {renderTitleWithLinks(task.title)}
+                    {renderTitleWithLinks(task.title, jiraSiteUrl ?? undefined)}
                   </span>
                   <div
                     className={`

@@ -6,6 +6,9 @@ import TaskList from "../Tasks/TaskList";
 import VotingPanel from "../Voting/VotingPanel";
 import PresenceAvatars from "./PresenceAvatars";
 import { Button } from "@/components/ui/button";
+import { ToastContainer } from "@/components/ui/toast";
+import { useToast } from "@/hooks/useToast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LogOut, Share2 } from "lucide-react";
 
 const normalizeParticipants = (presenceState: Record<string, unknown[]>) => {
@@ -57,6 +60,8 @@ export default function RoomPage() {
   } = useRoomStore();
   const [roomName, setRoomName] = useState("");
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [endMeetingOpen, setEndMeetingOpen] = useState(false);
+  const { toasts, showToast, dismissToast } = useToast();
   const roomTaskIdsRef = useRef<string[]>([]);
   const initialTaskFromUrlRef = useRef<string | null>(null);
 
@@ -281,7 +286,7 @@ export default function RoomPage() {
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert("Link copied to clipboard!");
+    showToast("Link copied to clipboard!");
   };
 
   return (
@@ -310,20 +315,7 @@ export default function RoomPage() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={async () => {
-                const confirm = window.confirm(
-                  "End this meeting and show summary?",
-                );
-                if (!confirm) return;
-                const { error } = await supabase
-                  .from("rooms")
-                  .update({
-                    status: "completed",
-                    completed_at: new Date().toISOString(),
-                  })
-                  .eq("id", roomId);
-                if (error) console.error("Error ending meeting:", error);
-              }}
+              onClick={() => setEndMeetingOpen(true)}
               className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl"
             >
               End Meeting
@@ -353,6 +345,26 @@ export default function RoomPage() {
           <VotingPanel />
         </div>
       </main>
+
+      <ConfirmDialog
+        open={endMeetingOpen}
+        onOpenChange={setEndMeetingOpen}
+        title="End Meeting"
+        description="This will close the room and show the session summary to everyone. This action cannot be undone."
+        confirmLabel="End Meeting"
+        onConfirm={async () => {
+          const { error } = await supabase
+            .from("rooms")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+            })
+            .eq("id", roomId);
+          if (error) console.error("Error ending meeting:", error);
+        }}
+      />
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

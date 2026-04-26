@@ -1,8 +1,11 @@
 {
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/((?!api/|src/|@vite/|@react-refresh|node_modules/).*)",
+      "dest": "/index.html"
     }
   ]
 }

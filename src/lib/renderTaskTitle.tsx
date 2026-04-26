@@ -1,20 +1,23 @@
 /**
- * Parses a string and converts any LP-xxxx pattern into an external Jira link.
+ * Parses a string and converts any Jira issue key pattern (e.g. LP-1234, TUM-99)
+ * into an external Jira link. Works dynamically for any project key.
  */
-export function renderTitleWithLinks(title: string) {
+export function renderTitleWithLinks(title: string, jiraSiteUrl?: string) {
   if (!title) return null;
 
-  // Split by the pattern and capture the pattern to keep it in the array
-  const parts = title.split(/(LP-\d+)/g);
+  const parts = title.split(/([A-Z][A-Z0-9]+-\d+)/g);
 
   return (
     <>
       {parts.map((part, i) => {
-        if (part.match(/^LP-\d+$/)) {
+        if (/^[A-Z][A-Z0-9]+-\d+$/.test(part)) {
+          const base = jiraSiteUrl
+            ? jiraSiteUrl.replace(/\/$/, "")
+            : "https://jira.atlassian.net";
           return (
             <a
               key={i}
-              href={`https://7-solutions.atlassian.net/browse/${part}`}
+              href={`${base}/browse/${part}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 underline underline-offset-4 decoration-indigo-500/30 font-bold transition-colors cursor-pointer"
