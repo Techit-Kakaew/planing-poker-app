@@ -172,16 +172,18 @@ export default function RoomPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "votes" },
         (payload) => {
-          const changedTaskId =
-            payload.eventType === "DELETE"
-              ? payload.old.task_id
-              : payload.new.task_id;
-
-          if (
-            changedTaskId &&
-            roomTaskIdsRef.current.includes(changedTaskId as string)
-          ) {
+          if (payload.eventType === "DELETE") {
+            // For DELETE, payload.old only contains the PK (id) by default.
+            // So we refresh votes for all tasks in the room to stay in sync.
             fetchVotes();
+          } else {
+            const changedTaskId = payload.new.task_id;
+            if (
+              changedTaskId &&
+              roomTaskIdsRef.current.includes(changedTaskId as string)
+            ) {
+              fetchVotes();
+            }
           }
         },
       )

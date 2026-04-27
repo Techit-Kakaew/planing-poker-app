@@ -29,6 +29,7 @@ export default function VotingPanel() {
     tasks,
     currentTaskId,
     votes,
+    setVotes,
     participants: participantsList,
     roomOwnerId,
     jiraSiteUrl,
@@ -99,8 +100,33 @@ export default function VotingPanel() {
     if (!currentTaskId || !user || revealed) return;
     setLoadingCard(value);
 
+    const isDeselect = myVote?.value === value;
+    const previousVotes = [...votes];
+
+    // Optimistic Update
+    if (isDeselect) {
+      setVotes(
+        votes.filter(
+          (v) => !(v.task_id === currentTaskId && v.user_id === user.id),
+        ),
+      );
+    } else {
+      const newVote = {
+        id: myVote?.id || "temp-id",
+        task_id: currentTaskId,
+        user_id: user.id,
+        value: value,
+        user_name: user.user_metadata.full_name || user.email,
+        avatar_url: user.user_metadata.avatar_url,
+      };
+      const filtered = votes.filter(
+        (v) => !(v.task_id === currentTaskId && v.user_id === user.id),
+      );
+      setVotes([...filtered, newVote]);
+    }
+
     try {
-      if (myVote?.value === value) {
+      if (isDeselect) {
         // Deselect: remove the vote
         const { error } = await supabase
           .from("votes")
@@ -108,7 +134,10 @@ export default function VotingPanel() {
           .eq("task_id", currentTaskId)
           .eq("user_id", user.id);
 
-        if (error) console.error("Error removing vote:", error);
+        if (error) {
+          console.error("Error removing vote:", error);
+          setVotes(previousVotes);
+        }
       } else {
         const { error } = await supabase.from("votes").upsert(
           {
@@ -121,8 +150,14 @@ export default function VotingPanel() {
           { onConflict: "task_id,user_id" },
         );
 
-        if (error) console.error("Error voting:", error);
+        if (error) {
+          console.error("Error voting:", error);
+          setVotes(previousVotes);
+        }
       }
+    } catch (err) {
+      console.error("Vote operation failed:", err);
+      setVotes(previousVotes);
     } finally {
       setLoadingCard(null);
     }

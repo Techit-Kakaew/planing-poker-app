@@ -14,6 +14,9 @@ import SummaryPage from "./components/Room/SummaryPage";
 import DashboardLayout from "./components/Dashboard/DashboardLayout";
 import ActiveRooms from "./components/Dashboard/ActiveRooms";
 import HistoryPage from "./components/Dashboard/HistoryPage";
+import PrivacyPage from "./components/Legal/PrivacyPage";
+import TermsPage from "./components/Legal/TermsPage";
+import ContactPage from "./components/Legal/ContactPage";
 
 function App() {
   const { user, setUser } = useRoomStore();
@@ -68,6 +71,11 @@ function App() {
             path="/room/:roomId/summary"
             element={user ? <SummaryPage /> : <Navigate to="/login" />}
           />
+
+          {/* Legal Pages */}
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/contact" element={<ContactPage />} />
         </Routes>
       </div>
     </Router>
